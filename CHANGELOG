@@ -1,3 +1,10 @@
+1.2.1
+- Added trigger to control update partitioned tables
+- Added function show_partition();
+- Added prefix and suffix for triggers;
+- Added suffix for constraint check;
+- Added prefix and suffix for functions;
+
 1.2.0
 -- Bug fix: Make child table lookups more intelligent to be able to deal with schemas being in the current search_path. Functions this affects are: drop_time_partition(), drop_id_partition(), reapply_privileges(), undo_partition(), undo_partition_id(), undo_partition_time(). Before table names may not have matched properly when looping through all tables to drop or reset privileges. Thanks to https://github.com/terrorobe for reporting this issue.
 -- Bug fix: reapply_privileges() had unconditional calls to pg_jobmon functions and would fail if it wasn't installed.

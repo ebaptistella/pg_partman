@@ -3,6 +3,17 @@ PG Partition Manager
 
 pg_partman is an extension to create and manage both time-based and serial-based table partition sets. Child table & trigger function creation is all managed by the extension itself. Tables with existing data can also have their data partitioned in easily managed smaller batches. Optional retention policy can automatically drop partitions no longer needed.
 
+My Contribution
+====================
+
+Ok! this is an adapted version of the pg_partman for my needs. Basically, my changes are for adapt to the standards that I use.
+
+But added some new features:
+- Trigger for update operations on partitioned tables;
+- Function show_partition (p_parent_table text) to list partitioned tables.
+
+WARNING: not implemented tests for trigger the update, only the tests provided with the extension were executed.
+
 INSTALLATION
 ------------
 Recommended: pg_jobmon (>=1.0.0). PG Job Monitor will automatically be used if it is installed.  
