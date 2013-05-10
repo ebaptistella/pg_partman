@@ -23,6 +23,7 @@ v_tablename                     text;
 v_trunc_value                   text;
 v_time                          timestamp;
 v_year                          text;
+v_sql							text;
 
 BEGIN
 
@@ -36,7 +37,7 @@ SELECT tableowner INTO v_parent_owner FROM pg_tables WHERE schemaname ||'.'|| ta
 
 FOREACH v_time IN ARRAY p_partition_times LOOP    
 
-    v_partition_name := p_parent_table || '_p';
+    v_partition_name := p_parent_table || '_part';
 
     IF p_interval = '1 year' OR p_interval = '1 month' OR p_interval = '1 day' OR p_interval = '1 hour' OR p_interval = '30 mins' OR p_interval = '15 mins' THEN
         v_partition_name := v_partition_name || to_char(v_time, 'YYYY');
@@ -84,8 +85,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     -- pull out datetime portion of last partition's tablename if it matched one of the above partitioning intervals
     IF v_trunc_value IS NOT NULL THEN
-        v_partition_timestamp_start := date_trunc(v_trunc_value, to_timestamp(substring(v_partition_name from char_length(p_parent_table||'_p')+1), p_datetime_string));
-        v_partition_timestamp_end := date_trunc(v_trunc_value, to_timestamp(substring(v_partition_name from char_length(p_parent_table||'_p')+1), p_datetime_string) + p_interval);
+        v_partition_timestamp_start := date_trunc(v_trunc_value, to_timestamp(substring(v_partition_name from char_length(p_parent_table||'_part')+1), p_datetime_string));
+        v_partition_timestamp_end := date_trunc(v_trunc_value, to_timestamp(substring(v_partition_name from char_length(p_parent_table||'_part')+1), p_datetime_string) + p_interval);
     END IF;
 
     -- "Q" is ignored in to_timestamp, so handle special case
@@ -122,9 +123,21 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     END IF;
 
     EXECUTE 'CREATE TABLE '||v_partition_name||' (LIKE '||p_parent_table||' INCLUDING DEFAULTS INCLUDING INDEXES)';
-    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check
+    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_chk
         CHECK ('||p_control||'>='||quote_literal(v_partition_timestamp_start)||' AND '||p_control||'<'||quote_literal(v_partition_timestamp_end)||')';
     EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
+
+	--paramters for storage
+	SELECT 'ALTER TABLE '|| v_partition_name ||' SET ('|| array_to_string(c.reloptions,',') || ');' AS sql
+		INTO v_sql
+		FROM
+			pg_class c
+			JOIN pg_namespace n ON c.relnamespace = n.oid
+		WHERE
+			n.nspname||'.'||c.relname = p_parent_table;
+	IF FOUND AND v_sql IS NOT NULL THEN
+		EXECUTE v_sql;
+	END IF;	
 
     FOR v_parent_grant IN 
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
@@ -152,6 +165,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     EXECUTE 'ALTER TABLE '||v_partition_name||' OWNER TO '||v_parent_owner;
 
+	--Create function for update data
+	EXECUTE 'SELECT @extschema@.create_function_for_update('||quote_literal(p_parent_table)||', '||quote_literal(p_control)||')';
+	--Create trigger for before update
+    EXECUTE 'SELECT @extschema@.create_trigger_for_update('||quote_literal(p_parent_table)||', '||quote_literal(v_partition_name)||', '||quote_literal(p_control)||')';	
+	
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'Done');
         PERFORM close_job(v_job_id);

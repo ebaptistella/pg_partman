@@ -18,6 +18,7 @@ v_revoke            text[];
 v_step_id           bigint;
 v_tablename         text;
 v_id                bigint;
+v_sql				text;
 
 BEGIN
 
@@ -31,7 +32,7 @@ SELECT tableowner INTO v_parent_owner FROM pg_tables WHERE schemaname ||'.'|| ta
 
 FOREACH v_id IN ARRAY p_partition_ids LOOP
 
-    v_partition_name := p_parent_table||'_p'||v_id;
+    v_partition_name := p_parent_table||'_part'||v_id;
         
     SELECT schemaname ||'.'|| tablename INTO v_tablename FROM pg_catalog.pg_tables WHERE schemaname ||'.'|| tablename = v_partition_name;
 
@@ -49,10 +50,22 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
     END IF;
 
     EXECUTE 'CREATE TABLE '||v_partition_name||' (LIKE '||p_parent_table||' INCLUDING DEFAULTS INCLUDING INDEXES)';
-    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check 
+    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_chk 
         CHECK ('||p_control||'>='||quote_literal(v_id)||' AND '||p_control||'<'||quote_literal(v_id + p_interval)||')';
     EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
 
+	--paramters for storage
+	SELECT 'ALTER TABLE '|| v_partition_name ||' SET ('|| array_to_string(c.reloptions,',') || ');' AS sql
+		INTO v_sql
+		FROM
+			pg_class c
+			JOIN pg_namespace n ON c.relnamespace = n.oid
+		WHERE
+			n.nspname||'.'||c.relname = p_parent_table;
+	IF FOUND AND v_sql IS NOT NULL THEN
+		EXECUTE v_sql;
+	END IF;	
+	
     FOR v_parent_grant IN 
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
         FROM information_schema.table_privileges 

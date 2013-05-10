@@ -21,6 +21,7 @@ v_step_id               bigint;
 v_tablename             text;
 v_total                 bigint := 0;
 v_undo_count            int := 0;
+v_control               text;
 
 BEGIN
 
@@ -43,10 +44,20 @@ END IF;
 
 -- Stops new time partitons from being made as well as stopping child tables from being dropped if they were configured with a retention period.
 UPDATE @extschema@.part_config SET undo_in_progress = true WHERE parent_table = p_parent_table;
+
+SELECT control
+  INTO v_control
+  FROM @extschema@.part_config 
+ WHERE parent_table = p_parent_table;
+IF v_control IS NULL THEN
+	RAISE EXCEPTION 'Not configuration for parent table: %', p_parent_table;
+END IF;
+
 -- Stop data going into child tables and stop new id partitions from being made.
 v_tablename := substring(p_parent_table from position('.' in p_parent_table)+1);
-EXECUTE 'DROP TRIGGER IF EXISTS '||v_tablename||'_part_trig ON '||p_parent_table;
-EXECUTE 'DROP FUNCTION IF EXISTS '||p_parent_table||'_part_trig_func()';
+EXECUTE 'DROP TRIGGER IF EXISTS trg_0000_'||v_tablename||'_befins ON '||p_parent_table;
+EXECUTE 'DROP FUNCTION IF EXISTS pct_'||v_tablename||'_befins() cascade';
+EXECUTE 'DROP FUNCTION IF EXISTS pct_'||v_tablename||'_'|| v_control ||'_befupd() cascade';
 
 IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', 'Stopped partition creation process. Removed trigger & trigger function');

@@ -97,7 +97,7 @@ EXECUTE 'SELECT max('||v_control||') FROM '||p_parent_table INTO v_max;
 FOR v_child_table IN 
     SELECT n.nspname||'.'||c.relname FROM pg_inherits i join pg_class c ON i.inhrelid = c.oid join pg_namespace n ON c.relnamespace = n.oid WHERE i.inhparent::regclass = p_parent_table::regclass ORDER BY i.inhrelid ASC
 LOOP
-    v_partition_id := substring(v_child_table from char_length(p_parent_table||'_p')+1)::bigint;
+    v_partition_id := substring(v_child_table from char_length(p_parent_table||'_part')+1)::bigint;
 
     -- Add one interval since partition names contain the start of the constraint period
     IF v_retention <= (v_max - (v_partition_id + v_part_interval)) THEN
@@ -117,6 +117,15 @@ LOOP
                 PERFORM update_step(v_step_id, 'OK', 'Done');
             END IF;
         ELSIF v_retention_keep_index = false THEN
+			IF v_jobmon_schema IS NOT NULL THEN
+				v_step_id := add_step(v_job_id, 'Drop trigger trg_0000_'||v_child_table||'_'||v_control||'_befupd');
+			END IF;
+		    --DROP TRIGGER PARTITION TABLE
+			EXECUTE 'DROP TRIGGER IF EXISTS trg_0000_'||v_child_table||'_'||v_control||'_befupd ON '||v_child_table;
+			IF v_jobmon_schema IS NOT NULL THEN
+				PERFORM update_step(v_step_id, 'OK', 'Done');
+			END IF;
+			
             FOR v_index IN 
                 SELECT i.indexrelid::regclass AS name
                 , c.conname

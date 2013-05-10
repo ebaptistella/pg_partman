@@ -64,8 +64,8 @@ END IF;
 UPDATE @extschema@.part_config SET undo_in_progress = true WHERE parent_table = p_parent_table;
 -- Stop data going into child tables and stop new id partitions from being made.
 v_tablename := substring(p_parent_table from position('.' in p_parent_table)+1);
-EXECUTE 'DROP TRIGGER IF EXISTS '||v_tablename||'_part_trig ON '||p_parent_table;
-EXECUTE 'DROP FUNCTION IF EXISTS '||p_parent_table||'_part_trig_func()';
+EXECUTE 'DROP TRIGGER IF EXISTS trg_0000_'||v_tablename||'_befins ON '||p_parent_table;
+EXECUTE 'DROP FUNCTION IF EXISTS pct_'||v_tablename||'_befins()';
 
 IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', 'Stopped partition creation process. Removed trigger & trigger function');
@@ -96,6 +96,15 @@ WHILE v_batch_loop_count < p_batch_count LOOP
                 PERFORM update_step(v_step_id, 'OK', 'Child table DROPPED. Moved '||v_child_loop_total||' rows to parent');
             END IF;
         ELSE
+			IF v_jobmon_schema IS NOT NULL THEN
+				v_step_id := add_step(v_job_id, 'Drop trigger trg_0000_'||substring(v_child_table from position('.' in v_child_table)+1)||'_'||v_control||'_befupd');
+			END IF;
+		    --DROP TRIGGER PARTITION TABLE
+			EXECUTE 'DROP TRIGGER IF EXISTS trg_0000_'||substring(v_child_table from position('.' in v_child_table)+1)||'_'||v_control||'_befupd ON '||v_child_table;
+			IF v_jobmon_schema IS NOT NULL THEN
+				PERFORM update_step(v_step_id, 'OK', 'Done');
+			END IF;
+
             IF v_jobmon_schema IS NOT NULL THEN
                 PERFORM update_step(v_step_id, 'OK', 'Child table UNINHERITED, not DROPPED. Moved '||v_child_loop_total||' rows to parent');
             END IF;

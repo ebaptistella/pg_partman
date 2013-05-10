@@ -44,12 +44,12 @@ END IF;
 
 -- pull out datetime portion of last partition's tablename to make the next one
 IF v_part_interval != '3 months' THEN
-    v_next_partition_timestamp := to_timestamp(substring(v_last_partition from char_length(p_parent_table||'_p')+1), v_datetime_string) + v_part_interval;
+    v_next_partition_timestamp := to_timestamp(substring(v_last_partition from char_length(p_parent_table||'_part')+1), v_datetime_string) + v_part_interval;
 ELSE
     -- to_timestamp doesn't recognize 'Q' date string formater. Handle it
-    v_year := split_part(substring(v_last_partition from char_length(p_parent_table||'_p')+1), 'q', 1);
+    v_year := split_part(substring(v_last_partition from char_length(p_parent_table||'_part')+1), 'q', 1);
     v_next_year := extract('year' from to_date(v_year, 'YYYY')+'1year'::interval); 
-    v_quarter := split_part(substring(v_last_partition from char_length(p_parent_table||'_p')+1), 'q', 2);
+    v_quarter := split_part(substring(v_last_partition from char_length(p_parent_table||'_part')+1), 'q', 2);
     CASE
         WHEN v_quarter = '1' THEN
             v_next_partition_timestamp := to_timestamp(v_year || '-04-01', 'YYYY-MM-DD');

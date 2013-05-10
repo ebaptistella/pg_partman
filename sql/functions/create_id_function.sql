@@ -59,9 +59,9 @@ END IF;
 IF v_type = 'id-static' THEN
     v_current_partition_id := p_current_id - (p_current_id % v_part_interval);
     v_next_partition_id := v_current_partition_id + v_part_interval;
-    v_current_partition_name := p_parent_table || '_p' || v_current_partition_id::text;
+    v_current_partition_name := p_parent_table || '_part' || v_current_partition_id::text;
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||substring(p_parent_table from 1 for position('.' in p_parent_table))||'pct_'||substring(p_parent_table from position('.' in p_parent_table)+1)||'_befins() RETURNS trigger LANGUAGE plpgsql AS $t$ 
         DECLARE
             v_current_partition_id  bigint;
             v_last_partition        text := '||quote_literal(v_last_partition)||';
@@ -76,8 +76,8 @@ IF v_type = 'id-static' THEN
             v_prev_partition_id := v_current_partition_id - (v_part_interval * i);
             v_next_partition_id := v_current_partition_id + (v_part_interval * i);
             v_final_partition_id := v_next_partition_id + v_part_interval;
-            v_prev_partition_name := p_parent_table || '_p' || v_prev_partition_id::text;
-            v_next_partition_name := p_parent_table || '_p' || v_next_partition_id::text;
+            v_prev_partition_name := p_parent_table || '_part' || v_prev_partition_id::text;
+            v_next_partition_name := p_parent_table || '_part' || v_next_partition_id::text;
             -- Only make previous partitions if they're starting above zero
             IF v_prev_partition_id >= 0 THEN
                 v_trig_func := v_trig_func ||'
@@ -95,7 +95,7 @@ IF v_type = 'id-static' THEN
             END IF;
             v_current_partition_id := NEW.'||v_control||' - (NEW.'||v_control||' % '||v_part_interval||');
             IF (NEW.'||v_control||' % '||v_part_interval||') > ('||v_part_interval||' / 2) THEN
-                v_next_partition_id := (substring(v_last_partition from char_length('||quote_literal(p_parent_table||'_p')||')+1)::bigint) + '||v_part_interval||';
+                v_next_partition_id := (substring(v_last_partition from char_length('||quote_literal(p_parent_table||'_part')||')+1)::bigint) + '||v_part_interval||';
                 WHILE ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' LOOP 
                     v_next_partition_name := @extschema@.create_id_partition('||quote_literal(p_parent_table)||', '||quote_literal(v_control)||','
                         ||v_part_interval||', ARRAY[v_next_partition_id]);
@@ -116,7 +116,7 @@ IF v_type = 'id-static' THEN
 
 ELSIF v_type = 'id-dynamic' THEN
     -- The return inside the partition creation check is there to keep really high ID values from creating new partitions.
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||substring(p_parent_table from 1 for position('.' in p_parent_table))||'pct_'||substring(p_parent_table from position('.' in p_parent_table)+1)||'_befins() RETURNS trigger LANGUAGE plpgsql AS $t$ 
         DECLARE
             v_count                     int;
             v_current_partition_id      bigint;
@@ -128,9 +128,9 @@ ELSIF v_type = 'id-dynamic' THEN
         BEGIN 
         IF TG_OP = ''INSERT'' THEN 
             v_current_partition_id := NEW.'||v_control||' - (NEW.'||v_control||' % '||v_part_interval||');
-            v_current_partition_name := '''||p_parent_table||'_p''||v_current_partition_id;
+            v_current_partition_name := '''||p_parent_table||'_part''||v_current_partition_id;
             IF (NEW.'||v_control||' % '||v_part_interval||') > ('||v_part_interval||' / 2) THEN
-                v_last_partition_id = substring(v_last_partition from char_length('||quote_literal(p_parent_table||'_p')||')+1)::bigint;
+                v_last_partition_id = substring(v_last_partition from char_length('||quote_literal(p_parent_table||'_part')||')+1)::bigint;
                 v_next_partition_id := v_last_partition_id + '||v_part_interval||';
                 IF NEW.'||v_control||' >= v_next_partition_id THEN
                     RETURN NEW;

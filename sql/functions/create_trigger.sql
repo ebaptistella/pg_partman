@@ -13,8 +13,8 @@ IF position('.' in p_parent_table) > 0 THEN
 END IF;
 
 
-v_trig := 'CREATE TRIGGER '||v_tablename||'_part_trig BEFORE INSERT ON '||p_parent_table||
-    ' FOR EACH ROW EXECUTE PROCEDURE '||p_parent_table||'_part_trig_func()';
+v_trig := 'CREATE TRIGGER trg_0000_'||v_tablename||'_befins BEFORE INSERT ON '||p_parent_table||
+    ' FOR EACH ROW EXECUTE PROCEDURE pct_'||substring(p_parent_table from position('.' in p_parent_table)+1)||'_befins()';
 
 --RAISE NOTICE 'v_trig: %', v_trig;
 EXECUTE v_trig;

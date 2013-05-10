@@ -22,6 +22,7 @@ v_retention_keep_index      boolean;
 v_retention_keep_table      boolean;
 v_step_id                   bigint;
 v_year                      text;
+v_control                   text;
 
 BEGIN
 
@@ -45,12 +46,14 @@ IF p_retention IS NULL THEN
         , retention_keep_table
         , retention_keep_index
         , datetime_string
+		, control
     INTO
         v_part_interval
         , v_retention
         , v_retention_keep_table
         , v_retention_keep_index
         , v_datetime_string
+		, v_control
     FROM @extschema@.part_config 
     WHERE parent_table = p_parent_table 
     AND (type = 'time-static' OR type = 'time-dynamic') 
@@ -65,11 +68,13 @@ ELSE
         , retention_keep_table
         , retention_keep_index
         , datetime_string
+		, control
     INTO
         v_part_interval
         , v_retention_keep_table
         , v_retention_keep_index
         , v_datetime_string
+		, v_control
     FROM @extschema@.part_config 
     WHERE parent_table = p_parent_table 
     AND (type = 'time-static' OR type = 'time-dynamic'); 
@@ -97,11 +102,11 @@ FOR v_child_table IN
 LOOP
     -- pull out datetime portion of last partition's tablename to make the next one
     IF v_part_interval != '3 months' THEN
-        v_partition_timestamp := to_timestamp(substring(v_child_table from char_length(p_parent_table||'_p')+1), v_datetime_string);
+        v_partition_timestamp := to_timestamp(substring(v_child_table from char_length(p_parent_table||'_part')+1), v_datetime_string);
     ELSE
         -- to_timestamp doesn't recognize 'Q' date string formater. Handle it
-        v_year := split_part(substring(v_child_table from char_length(p_parent_table||'_p')+1), 'q', 1);
-        v_quarter := split_part(substring(v_child_table from char_length(p_parent_table||'_p')+1), 'q', 2);
+        v_year := split_part(substring(v_child_table from char_length(p_parent_table||'_part')+1), 'q', 1);
+        v_quarter := split_part(substring(v_child_table from char_length(p_parent_table||'_part')+1), 'q', 2);
         CASE
             WHEN v_quarter = '1' THEN
                 v_partition_timestamp := to_timestamp(v_year || '-01-01', 'YYYY-MM-DD');
@@ -132,6 +137,15 @@ LOOP
                 PERFORM update_step(v_step_id, 'OK', 'Done');
             END IF;
         ELSIF v_retention_keep_index = false THEN
+			IF v_jobmon_schema IS NOT NULL THEN
+				v_step_id := add_step(v_job_id, 'Drop trigger trg_0000_'||v_child_table||'_'||v_control||'_befupd');
+			END IF;
+		    --DROP TRIGGER PARTITION TABLE
+			EXECUTE 'DROP TRIGGER IF EXISTS trg_0000_'||v_child_table||'_'||v_control||'_befupd ON '||v_child_table;
+			IF v_jobmon_schema IS NOT NULL THEN
+				PERFORM update_step(v_step_id, 'OK', 'Done');
+			END IF;
+
             FOR v_index IN 
                 SELECT i.indexrelid::regclass AS name
                 , c.conname

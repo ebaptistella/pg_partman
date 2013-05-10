@@ -78,10 +78,10 @@ IF v_type = 'time-static' THEN
             v_current_partition_timestamp := date_trunc('year', CURRENT_TIMESTAMP);
     END CASE;
     
-    v_current_partition_name := p_parent_table || '_p' || to_char(v_current_partition_timestamp, v_datetime_string);
+    v_current_partition_name := p_parent_table || '_part' || to_char(v_current_partition_timestamp, v_datetime_string);
     v_next_partition_timestamp := v_current_partition_timestamp + v_part_interval::interval;
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||substring(p_parent_table from 1 for position('.' in p_parent_table))||'pct_'||substring(p_parent_table from position('.' in p_parent_table)+1)||'_befins() RETURNS trigger LANGUAGE plpgsql AS $t$ 
         BEGIN 
         IF TG_OP = ''INSERT'' THEN 
             IF NEW.'||v_control||' >= '||quote_literal(v_current_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_next_partition_timestamp)|| ' THEN 
@@ -90,8 +90,8 @@ IF v_type = 'time-static' THEN
         v_prev_partition_timestamp := v_current_partition_timestamp - (v_part_interval::interval * i);
         v_next_partition_timestamp := v_current_partition_timestamp + (v_part_interval::interval * i);
         v_final_partition_timestamp := v_next_partition_timestamp + (v_part_interval::interval);
-        v_prev_partition_name := p_parent_table || '_p' || to_char(v_prev_partition_timestamp, v_datetime_string);
-        v_next_partition_name := p_parent_table || '_p' || to_char(v_next_partition_timestamp, v_datetime_string);
+        v_prev_partition_name := p_parent_table || '_part' || to_char(v_prev_partition_timestamp, v_datetime_string);
+        v_next_partition_name := p_parent_table || '_part' || to_char(v_next_partition_timestamp, v_datetime_string);
 
         v_trig_func := v_trig_func ||'
             ELSIF NEW.'||v_control||' >= '||quote_literal(v_prev_partition_timestamp)||' AND NEW.'||v_control||' < '||
@@ -118,7 +118,7 @@ IF v_type = 'time-static' THEN
 
 ELSIF v_type = 'time-dynamic' THEN
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||substring(p_parent_table from 1 for position('.' in p_parent_table))||'pct_'||substring(p_parent_table from position('.' in p_parent_table)+1)||'_befins() RETURNS trigger LANGUAGE plpgsql AS $t$ 
         DECLARE
             v_count                 int;
             v_partition_name        text;
@@ -150,7 +150,7 @@ ELSIF v_type = 'time-dynamic' THEN
         END CASE;
 
         v_trig_func := v_trig_func||'
-            v_partition_name := '''||p_parent_table||'_p''|| to_char(v_partition_timestamp, '||quote_literal(v_datetime_string)||');
+            v_partition_name := '''||p_parent_table||'_part''|| to_char(v_partition_timestamp, '||quote_literal(v_datetime_string)||');
             v_schemaname := split_part(v_partition_name, ''.'', 1); 
             v_tablename := split_part(v_partition_name, ''.'', 2);
             SELECT count(*) INTO v_count FROM pg_tables WHERE schemaname = v_schemaname AND tablename = v_tablename;
