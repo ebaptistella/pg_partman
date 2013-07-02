@@ -122,10 +122,10 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_tablename := substring(v_partition_name from position('.' in v_partition_name)+1);
     END IF;
 
-    EXECUTE 'CREATE TABLE '||v_partition_name||' (LIKE '||p_parent_table||' INCLUDING DEFAULTS INCLUDING INDEXES)';
+    EXECUTE 'CREATE TABLE '||v_partition_name||' (LIKE '||p_parent_table||' INCLUDING STORAGE INCLUDING INDEXES INCLUDING DEFAULTS INCLUDING CONSTRAINTS) INHERITS ('||p_parent_table||') ';
     EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_chk
         CHECK ('||p_control||'>='||quote_literal(v_partition_timestamp_start)||' AND '||p_control||'<'||quote_literal(v_partition_timestamp_end)||')';
-    EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
+    --EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
 
 	--paramters for storage
 	SELECT 'ALTER TABLE '|| v_partition_name ||' SET ('|| array_to_string(c.reloptions,',') || ');' AS sql
